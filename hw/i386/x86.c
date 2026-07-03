@@ -97,12 +97,14 @@ uint32_t x86_cpu_apic_id_from_index(X86MachineState *x86ms,
 
 void x86_cpu_new(X86MachineState *x86ms, int64_t apic_id, Error **errp)
 {
+    fprintf(stderr, "[SMPDBG] x86_cpu_new: apic_id=%lld\n", (long long)apic_id);
     Object *cpu = object_new(MACHINE(x86ms)->cpu_type);
 
     if (!object_property_set_uint(cpu, "apic-id", apic_id, errp)) {
         goto out;
     }
     qdev_realize(DEVICE(cpu), NULL, errp);
+    fprintf(stderr, "[SMPDBG] x86_cpu_new done: apic_id=%lld errp_set=%d\n", (long long)apic_id, (int)(errp && *errp != NULL));
 
 out:
     object_unref(cpu);
@@ -156,6 +158,7 @@ void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
 
 void x86_rtc_set_cpus_count(ISADevice *s, uint16_t cpus_count)
 {
+    fprintf(stderr, "[SMPDBG] rtc_set_cpus_count: %u\n", cpus_count);
     MC146818RtcState *rtc = MC146818_RTC(s);
 
     if (cpus_count > 0xff) {
@@ -200,6 +203,7 @@ CPUArchId *x86_find_cpu_slot(MachineState *ms, uint32_t id, int *idx)
 void x86_cpu_plug(HotplugHandler *hotplug_dev,
                   DeviceState *dev, Error **errp)
 {
+    fprintf(stderr, "[SMPDBG] x86_cpu_plug ENTER\n");
     CPUArchId *found_cpu;
     Error *local_err = NULL;
     X86CPU *cpu = X86_CPU(dev);
@@ -214,6 +218,7 @@ void x86_cpu_plug(HotplugHandler *hotplug_dev,
 
     /* increment the number of CPUs */
     x86ms->boot_cpus++;
+    fprintf(stderr, "[SMPDBG] x86_cpu_plug: boot_cpus now=%u\n", x86ms->boot_cpus);
     if (x86ms->rtc) {
         x86_rtc_set_cpus_count(x86ms->rtc, x86ms->boot_cpus);
     }

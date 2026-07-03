@@ -66,6 +66,7 @@ static void mttcg_force_rcu(Notifier *notify, void *data)
 #endif
 static void *mttcg_cpu_thread_fn(void *arg)
 {
+    fprintf(stderr, "[SMPDBG] vCPU thread ALIVE: cpu_index=%d\n", ((CPUState *)arg)->cpu_index);
     MttcgForceRcuNotifier force_rcu;
     CPUState *cpu = arg;
 
@@ -138,6 +139,7 @@ void mttcg_kick_vcpu_thread(CPUState *cpu)
 
 void mttcg_start_vcpu_thread(CPUState *cpu)
 {
+    fprintf(stderr, "[SMPDBG] mttcg_start_vcpu_thread: cpu_index=%d\n", cpu->cpu_index);
     char thread_name[VCPU_THREAD_NAME_SIZE];
 
     g_assert(tcg_enabled());
