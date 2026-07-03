@@ -889,6 +889,7 @@ static void machine_set_smp(Object *obj, Visitor *v, const char *name,
         return;
     }
 
+    fprintf(stderr, "[SMPDBG] machine_set_smp called (config cpus present=%d)\n", (int)config->has_cpus);
     machine_parse_smp_config(ms, config, errp);
 }
 

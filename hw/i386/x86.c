@@ -110,6 +110,7 @@ out:
 
 void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
 {
+    fprintf(stderr, "[SMPDBG] x86_cpus_init: ms->smp.cpus=%u max_cpus=%u\n", MACHINE(x86ms)->smp.cpus, MACHINE(x86ms)->smp.max_cpus);
     int i;
     const CPUArchIdList *possible_cpus;
     MachineState *ms = MACHINE(x86ms);

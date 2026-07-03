@@ -1922,6 +1922,7 @@ static bool object_create_early(const char *type)
 
 static void qemu_apply_machine_options(QDict *qdict)
 {
+    fprintf(stderr, "[SMPDBG] apply_machine_options: smp-in-dict=%d\n", (int)qdict_haskey(qdict, "smp"));
     object_set_properties_from_keyval(OBJECT(current_machine), qdict, false, &error_fatal);
 
     if (semihosting_enabled(false) && !semihosting_get_argc()) {
@@ -3356,6 +3357,7 @@ void qemu_init(int argc, char **argv)
             case QEMU_OPTION_smp:
                 machine_parse_property_opt(qemu_find_opts("smp-opts"),
                                            "smp", optarg);
+                fprintf(stderr, "[SMPDBG] -smp option parsed+merged: %s\n", optarg);
                 break;
 #ifdef CONFIG_VNC
             case QEMU_OPTION_vnc:

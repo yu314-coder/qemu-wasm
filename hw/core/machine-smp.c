@@ -183,6 +183,7 @@ void machine_parse_smp_config(MachineState *ms,
                                       clusters * cores * threads;
     cpus = cpus > 0 ? cpus : maxcpus;
 
+    fprintf(stderr, "[SMPDBG] parse_smp_config: cpus=%u sockets=%u cores=%u maxcpus=%u\n", cpus, sockets, cores, maxcpus);
     ms->smp.cpus = cpus;
     ms->smp.drawers = drawers;
     ms->smp.books = books;
