@@ -334,7 +334,39 @@ int qemu_timeout_ns_to_ms(int64_t ns)
  */
 int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout)
 {
-#ifdef CONFIG_PPOLL
+#ifdef EMSCRIPTEN
+    /* Emscripten's poll()/ppoll() never actually BLOCKS (fd readiness is evaluated in JS and
+     * returns immediately), so honoring `timeout` degenerates into a busy-spin: the idle main
+     * loop burns a full host core even while the guest CPU is halted (measured ~1.2 cores at an
+     * idle shell prompt — pure battery drain on a tablet). Emulate the timeout honestly: poll
+     * non-blocking, and between empty polls sleep in small slices with nanosleep(), which IS a
+     * real zero-CPU futex wait under emscripten pthreads. Worst-case added event latency is one
+     * slice (2 ms) — far below TCG timing noise. timeout<0 (infinite) uses the same loop.
+     */
+    {
+        int64_t remaining = timeout;
+        for (;;) {
+            int r = g_poll(fds, nfds, 0);
+            if (r != 0 || remaining == 0) {
+                return r;
+            }
+            int64_t slice_ns = 2 * 1000000LL;                 /* 2 ms */
+            if (remaining > 0 && remaining < slice_ns) {
+                slice_ns = remaining;
+            }
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = slice_ns;
+            nanosleep(&ts, NULL);
+            if (remaining > 0) {
+                remaining -= slice_ns;
+                if (remaining < 0) {
+                    remaining = 0;
+                }
+            }
+        }
+    }
+#elif defined(CONFIG_PPOLL)
     if (timeout < 0) {
         return ppoll((struct pollfd *)fds, nfds, NULL, NULL);
     } else {
