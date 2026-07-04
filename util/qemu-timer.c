@@ -345,12 +345,16 @@ int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout)
      */
     {
         int64_t remaining = timeout;
+        /* Adaptive slices: start fine-grained (1 ms) for responsiveness right after activity,
+         * back off exponentially to 8 ms while nothing happens — 4x fewer wakeups at deep idle
+         * for the same worst-case latency class. Any readiness resets the backoff (we return).
+         */
+        int64_t slice_ns = 1 * 1000000LL;                     /* 1 ms, doubling to 8 ms */
         for (;;) {
             int r = g_poll(fds, nfds, 0);
             if (r != 0 || remaining == 0) {
                 return r;
             }
-            int64_t slice_ns = 2 * 1000000LL;                 /* 2 ms */
             if (remaining > 0 && remaining < slice_ns) {
                 slice_ns = remaining;
             }
@@ -363,6 +367,9 @@ int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout)
                 if (remaining < 0) {
                     remaining = 0;
                 }
+            }
+            if (slice_ns < 8 * 1000000LL) {
+                slice_ns *= 2;                                /* 1 -> 2 -> 4 -> 8 ms */
             }
         }
     }
