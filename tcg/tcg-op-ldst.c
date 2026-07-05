@@ -1072,6 +1072,15 @@ static void tcg_gen_atomic_cmpxchg_i128_int(TCGv_i128 retv, TCGTemp *addr,
     }
 
     gen = table_cmpxchg[memop & (MO_SIZE | MO_BSWAP)];
+#ifdef __EMSCRIPTEN__
+    /*
+     * The wasm32 backend's i128 helper-call marshaling is unproven for the
+     * atomic table helpers; targets that need a fast 16-byte CAS get bespoke
+     * scalar helpers instead (see i386 helper_cmpxchg16b_locked).  Fall back
+     * to exit_atomic here, which is the pre-HAVE_CMPXCHG128 behavior.
+     */
+    gen = NULL;
+#endif
     if (gen) {
         MemOpIdx oi = make_memop_idx(memop, idx);
         TCGv_i64 a64 = maybe_extend_addr64(addr);

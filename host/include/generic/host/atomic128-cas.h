@@ -61,7 +61,18 @@ static inline Int128 atomic16_cmpxchg(Int128 *ptr, Int128 cmp, Int128 new)
         /* spin — hold times are tens of instructions */
     }
     old = *ptr_align;
-    if (int128_eq(old, cmp)) {
+    /*
+     * Skip the store when the value would not change.  This is not an
+     * optimization but a CORRECTNESS requirement for the CAS-read idiom
+     * (atomic16_cmpxchg(p, 0, 0) in load_atom_16 & co): plain stores do
+     * not take this lock, so writing old-equals-new back would clobber a
+     * plain store that landed between our read and our write-back — on
+     * real hardware the compare and store are one indivisible bus-locked
+     * operation, so that interleaving cannot happen.  Skipping the no-op
+     * store makes CAS-reads pure reads.  (Linux SLUB keeps NULL freelist
+     * heads, so the 0->0 clobber corrupted freelists 0.5s into boot.)
+     */
+    if (int128_eq(old, cmp) && !int128_eq(old, new)) {
         *ptr_align = new;
     }
     qatomic_store_release(&qemu_wasm128_lock, 0u);

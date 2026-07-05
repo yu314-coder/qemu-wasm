@@ -3023,6 +3023,21 @@ static void gen_cmpxchg16b(DisasContext *s, CPUX86State *env, int modrm)
 
     gen_lea_modrm(env, s, modrm);
 
+#ifdef __EMSCRIPTEN__
+    if (s->prefix & PREFIX_LOCK) {
+        /*
+         * All-scalar helper call — the wasm32 backend's i128 helper-call
+         * marshaling is unproven for the atomic table helpers.  The helper
+         * reads RDX:RAX / RCX:RBX from env, does the locked CAS, and writes
+         * RDX:RAX + ZF back into env itself (see helper_cmpxchg16b_locked).
+         */
+        gen_compute_eflags(s);
+        gen_helper_cmpxchg16b_locked(tcg_env, s->A0,
+            tcg_constant_i32(make_memop_idx(mop, s->mem_index)));
+        return;
+    }
+#endif
+
     cmp = tcg_temp_new_i128();
     val = tcg_temp_new_i128();
     tcg_gen_concat_i64_i128(cmp, cpu_regs[R_EAX], cpu_regs[R_EDX]);

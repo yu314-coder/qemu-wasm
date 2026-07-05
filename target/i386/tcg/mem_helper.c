@@ -55,3 +55,36 @@ void helper_boundl(CPUX86State *env, target_ulong a0, int v)
         raise_exception_ra(env, EXCP05_BOUND, GETPC());
     }
 }
+
+#ifdef __EMSCRIPTEN__
+/*
+ * wasm32-only: LOCK CMPXCHG16B via an all-scalar helper call.
+ *
+ * The generic path (tcg_gen_atomic_cmpxchg_i128 -> gen_helper_atomic_cmpxchgo_le)
+ * passes and returns Int128 values through the TCG-emitted call itself; that
+ * marshaling had never executed on the wasm32 backend before HAVE_CMPXCHG128
+ * was enabled here.  Keep every TCG-visible value scalar (env, addr, oi) and do
+ * the Int128 work in plain C, like s390x's CDSG helper: operands come from the
+ * guest regs, the CAS runs through cpu_atomic_cmpxchgo_le_mmu (backed by the
+ * spinlock atomic16_cmpxchg), and RDX:RAX + ZF are written straight into env.
+ *
+ * gen_cmpxchg16b() runs gen_compute_eflags() first, so cc_op is CC_OP_EFLAGS
+ * and the live flags sit in env->cc_src — updating Z there is enough.  Default
+ * helper flags (writes globals) make translated code reload RAX/RDX/cc_src.
+ */
+void helper_cmpxchg16b_locked(CPUX86State *env, target_ulong a0, uint32_t oi)
+{
+    uintptr_t ra = GETPC();
+    Int128 cmpv = int128_make128(env->regs[R_EAX], env->regs[R_EDX]);
+    Int128 newv = int128_make128(env->regs[R_EBX], env->regs[R_ECX]);
+    Int128 oldv = cpu_atomic_cmpxchgo_le_mmu(env, a0, cmpv, newv, oi, ra);
+
+    if (int128_eq(oldv, cmpv)) {
+        env->cc_src |= CC_Z;
+    } else {
+        env->cc_src &= ~(target_ulong)CC_Z;
+        env->regs[R_EAX] = int128_getlo(oldv);
+        env->regs[R_EDX] = int128_gethi(oldv);
+    }
+}
+#endif
