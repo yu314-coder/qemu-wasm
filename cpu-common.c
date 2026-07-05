@@ -30,6 +30,12 @@ static QemuCond exclusive_cond;
 static QemuCond exclusive_resume;
 static QemuCond qemu_work_cond;
 
+#ifdef __EMSCRIPTEN__
+/* Global spinlock backing the lock-based atomic16_cmpxchg for wasm32 —
+ * see host/include/generic/host/atomic128-cas.h. */
+unsigned qemu_wasm128_lock;
+#endif
+
 /* >= 1 if a thread is inside start_exclusive/end_exclusive.  Written
  * under qemu_cpu_list_lock, read with atomic operations.
  */

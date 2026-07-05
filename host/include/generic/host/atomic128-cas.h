@@ -37,6 +37,37 @@ atomic16_cmpxchg(Int128 *ptr, Int128 cmp, Int128 new)
     return r.s;
 }
 # define HAVE_CMPXCHG128 1
+#elif defined(__EMSCRIPTEN__)
+/*
+ * wasm32 has no 128-bit atomics, and the EXCP_ATOMIC fallback turns every
+ * guest cmpxchg16b into a stop-the-world exclusive section — Windows/wine
+ * x64 code leans on cmpxchg16b for its lock-free SLISTs (loader work queues,
+ * LFH heap lookasides), which serialized every allocation against ALL vCPUs
+ * and froze wine outright.  Emulate it with one global spinlock instead:
+ * CAS-vs-CAS atomicity is preserved (all mutators funnel through the lock),
+ * and a plain racing 16-byte read can tear exactly like it can on real x86
+ * hardware doing two 8-byte loads — the SLIST sequence counter exists to
+ * tolerate that.  Hold time is ~30 host instructions, so contention is
+ * cheap; vastly cheaper than parking every vCPU per op.
+ */
+extern unsigned qemu_wasm128_lock;
+
+static inline Int128 atomic16_cmpxchg(Int128 *ptr, Int128 cmp, Int128 new)
+{
+    Int128 *ptr_align = __builtin_assume_aligned(ptr, 16);
+    Int128 old;
+
+    while (qatomic_xchg(&qemu_wasm128_lock, 1u)) {
+        /* spin — hold times are tens of instructions */
+    }
+    old = *ptr_align;
+    if (int128_eq(old, cmp)) {
+        *ptr_align = new;
+    }
+    qatomic_store_release(&qemu_wasm128_lock, 0u);
+    return old;
+}
+# define HAVE_CMPXCHG128 1
 #else
 /* Fallback definition that must be optimized away, or error.  */
 Int128 QEMU_ERROR("unsupported atomic")
